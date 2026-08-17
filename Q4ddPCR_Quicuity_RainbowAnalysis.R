@@ -2,12 +2,7 @@
 # version 1.0.0 (date 2026-08-14) 
 
 
-# Step 1: Set Parameters 
-xlsx_file=paste(substr(qiacuity_file, 1, nchar(qiacuity_file)-4),Sys.Date(),"_outfile.xlsx", sep="")
-csv_file=paste(substr(qiacuity_file, 1, nchar(qiacuity_file)-4),Sys.Date(),"_outfile.csv", sep="")
 
-createXLSXfile(qiacuity_file, clusterRPP30_file)
-createCSVfile(clusterRainbow_file, clusterRPP30_file)
 
 # Step 2: Read files
 information <- read_files(
