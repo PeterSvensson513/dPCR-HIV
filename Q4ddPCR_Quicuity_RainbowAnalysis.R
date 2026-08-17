@@ -26,9 +26,14 @@ dtQC   <- information[[2]]
 
 # Quality control and preprocessing
 
+
+
 s_desc <- unique(dtQC$`Sample description 1`)
 tar_mio_factor <- setNames(rep(rpp30c_per_cell, length(s_desc)), s_desc)
 dilution_factor <- setNames(rep(dilution_factor_RPP30, length(s_desc)), s_desc)
+#special solution for dilution experiments 2026
+if (is_dilution_curve==TRUE)
+  dilution_factor[1:5] <- c(455,112,28,7,1)
 mean_cells_per_reac_factor <-setNames(rep(replicates_per_sample, length(s_desc)), s_desc)
 
 dtQC <- sufficient_droplets(dtQC, threshold)
@@ -79,6 +84,7 @@ if (is_dilution_curve==TRUE){
   shear_table2[9:10,1]<-"I4"
   shear_table2[3:10,2]<-c("D2","D2","D3","D3", "D4","D4", "D5","D5")
   shear_table<-shear_table2
+  
 }
 
 # Main table computations
@@ -148,7 +154,50 @@ out_tables <- append(out_tables,list(intact=tab_intact))
 out_tables <- append(out_tables,list(h2o=h2o_tab))
 out_tables <- append(out_tables,list(shear=shear_table))
 out_tables <- append(out_tables,list(cmatrix=conf_mat))
-openxlsx::write.xlsx(out_tables, output_file)
 
 
 
+## Add a summary sheet similar to results from Processing_Q4dPCR.R. 
+
+tab_summary <- tab |> 
+  group_by(group_id, `Sample description 1`) |>
+  select(c(`intact provirus/Mio cells PSI.ENV.POL.RU5.GAG, corrected for shearing`,`total HIV DNA/Mio cells`, `intact provirus/Mio cells PSI.ENV, corrected for shearing`,`intact provirus/Mio cells PSI.ENV` ,`Mean unsheared`))  |>
+             summarize(across(everything(), \(x) mean(x, na.rm = TRUE)), .groups = "drop_last")	
+           
+
+tmp<-tab |> 
+  group_by(group_id, `Sample description 1`, `Target`="RU5") |>
+  select(c(`Mean Target/Mio cells`))  |>
+  summarize(across(everything(), \(x) mean(x, na.rm = TRUE)), .groups = "drop_last")
+tab_summary$RU5 <- tmp$`Mean Target/Mio cells`
+
+
+tmp<-tab |> 
+  group_by(group_id, `Sample description 1`, `Target`="PSI") |>
+  select(c(`Mean Target/Mio cells`))  |>
+  summarize(across(everything(), \(x) mean(x, na.rm = TRUE)), .groups = "drop_last")
+tab_summary$PSI <- tmp$`Mean Target/Mio cells`
+
+tmp<-tab |> 
+  group_by(group_id, `Sample description 1`, `Target`="ENV") |>
+  select(c(`Mean Target/Mio cells`))  |>
+  summarize(across(everything(), \(x) mean(x, na.rm = TRUE)), .groups = "drop_last")
+tab_summary$ENV <- tmp$`Mean Target/Mio cells`
+
+
+tab_summary$defective <- tab_summary$`total HIV DNA/Mio cells`-tab_summary$`intact provirus/Mio cells PSI.ENV.POL.RU5.GAG, corrected for shearing`
+tab_summary$intact_fraction <- tab_summary$`intact provirus/Mio cells PSI.ENV.POL.RU5.GAG, corrected for shearing`/tab_summary$`total HIV DNA/Mio cells`*100
+tab_summary$intact_fraction_RU5 <- tab_summary$`intact provirus/Mio cells PSI.ENV.POL.RU5.GAG, corrected for shearing`/tab_summary$RU5*100
+tab_summary$IPDA_total <- tab_summary$PSI+tab_summary$ENV-tab_summary$`intact provirus/Mio cells PSI.ENV, corrected for shearing`
+tab_summary$IPDA_defective <- tab_summary$IPDA_total-tab_summary$`intact provirus/Mio cells PSI.ENV, corrected for shearing`
+tab_summary$IPDA_intactfraction <- tab_summary$`intact provirus/Mio cells PSI.ENV, corrected for shearing`/tab_summary$IPDA_total*100
+tab_summary$defective_RU5 <- tab_summary$RU5-tab_summary$`intact provirus/Mio cells PSI.ENV.POL.RU5.GAG, corrected for shearing`
+
+#tab_final<-tab_summary[,c(2,3,4,11,12,5,14,15,16,6,13),]
+#colnames(tab_final) <- c("Participant","Intact (5-color) per E6 CD4","Total HIV DNA per E6 CD4",	"Defectives per E6 CD4",	"Intact fraction (%)","IPDA Intacts per E6 CD4","Total HIV DNA IPDA per E6 CD4","IPDA Defectives per E6 CD4","Intact fraction IPDA (%)", "shearing","Intact fraction 5 colors (%RU5)")
+
+tab_final<-tab_summary[,c(2,3,8,17,13,5,14,15,16,7,4,12),]
+colnames(tab_final) <- c("Sample","Intact (5-color) per E6 CD4","Total HIV DNA per E6 CD4 (RU5)",	"Defectives per E6 CD4",	"Intact fraction (%)","IPDA Intacts per E6 CD4","Total HIV DNA IPDA per E6 CD4","IPDA Defectives per E6 CD4","Intact fraction IPDA (%)", "shearing","Total HIV DNA per E6 CD4","Intact fraction 5 colors (%)")
+
+out_tables2<-append(list(summary=tab_final),out_tables)
+openxlsx::write.xlsx(out_tables2, output_file)
